@@ -1,0 +1,31 @@
+package promptrs:client@0.1.0;
+
+interface completion {
+	record request {
+		api-key: option<string>,
+		base-url: string,
+		body: params,
+	}
+
+	record params {
+		model: string,
+		temperature: option<f64>,
+		top-p: option<f64>,
+		messages: list<message>,
+		%stream: bool,
+	}
+
+	variant message {
+		system(string),
+		user(string),
+		assistant(string),
+		tool-call(tuple<string, string>),
+		status(tuple<string, string>),
+	}
+
+	receive: func(payload: request) -> result<string, string>;
+}
+
+world client {
+	export completion;
+}
