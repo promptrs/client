@@ -1,0 +1,44 @@
+name: Publish WIT
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['wit/**']
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Get WIT version
+        run: sed -n 's|^package .*@\(.*\);|WIT_VERSION=\1|p' wit/world.wit >> $GITHUB_ENV
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.15
+      - name: Build WIT
+        run: |
+          cargo binstall wkg
+          wkg wit build -o promptrs-client.wasm
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish WIT interface to Container Registry
+        uses: bytecodealliance/wkg-github-action@v5
+        with:
+            oci-reference-without-tag: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}'
+            file: 'promptrs-client.wasm'
+            description: 'Core API for creating a promptrs agent'
+            source: 'https://github.com/promptrs/client'
+            homepage: 'https://github.com/promptrs/client'
+            version: ${{ env.WIT_VERSION }}
+            licenses: 'MIT'

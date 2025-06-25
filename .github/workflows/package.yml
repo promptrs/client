@@ -17,37 +17,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Check whether the WIT file is updated
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          commit_shas='${{ join(github.event.commits.*.id, ' ') }}'
-          if [ -z "$commit_shas" ]; then
-            initial_commit="$(gh api repos/${{ github.repository }}/commits | jq -r '.[0].sha')"
-            commit_shas="${initial_commit} ${commit_shas}"
-          fi
-          declare -A changed_files
-          for sha in $commit_shas; do
-            commits=$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/repos/${{ github.repository }}/commits/${sha}")
-            filenames=$(jq --join-output '.files[] | select(.status == "modified" or .status == "added") | "\(.filename) "' <<<"${commits}")
-            for filename in $filenames; do
-              changed_files[$filename]=1
-            done
-          done
-          if [ -n "$(echo "${!changed_files[@]}" | grep "wit/world.wit")" ]; then
-            sed -n 's|^package .*@\(.*\);|WIT_VERSION=\1|p' wit/world.wit >> $GITHUB_ENV
-          fi
-      - name: Install cargo-binstall
-        if: ${{ env.WIT_VERSION != '' }}
-        uses: cargo-bins/cargo-binstall@v1.10.15
-      - name: Build WIT
-        if: ${{ env.WIT_VERSION != '' }}
-        run: |
-          cargo binstall wkg
-          wkg wit build -o promptrs-client.wasm
       - name: Setup Rust toolchain for wasm32-wasip2
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -60,17 +29,6 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish WIT interface to Container Registry
-        if: ${{ env.WIT_VERSION != '' }}
-        uses: bytecodealliance/wkg-github-action@v5
-        with:
-            oci-reference-without-tag: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}'
-            file: 'promptrs-client.wasm'
-            description: 'Core API for creating a promptrs agent'
-            source: 'https://github.com/promptrs/client'
-            homepage: 'https://github.com/promptrs/client'
-            version: ${{ env.WIT_VERSION }}
-            licenses: 'MIT'
       - name: Get version
         id: meta
         uses: docker/metadata-action@v5
