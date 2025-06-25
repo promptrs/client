@@ -14,19 +14,22 @@ use std::io::{self, BufRead, BufReader, Lines, Write};
 use std::iter::StepBy;
 use std::time::Duration;
 
-use bindings::exports::promptrs::client::completion::{self, Guest, Params as HostParams, Request};
+use bindings::exports::promptrs::client::completion::{
+	self, Guest, Params as HostParams, Request, Response,
+};
 
 struct Component;
 
 impl Guest for Component {
-	fn receive(payload: Request) -> Result<String, String> {
+	fn receive(payload: Request) -> Result<Response, String> {
 		payload.chat_completion().map_err(|err| err.to_string())
 	}
 }
 
 impl Request {
-	pub fn chat_completion(&self) -> Result<String, Error> {
-		let response = self
+	pub fn chat_completion(&self) -> Result<Response, Error> {
+		let mut tool_calls = Vec::new();
+		let text = self
 			.stream()?
 			.into_iter()
 			.fold(String::new(), |acc, chunk| {
@@ -34,18 +37,32 @@ impl Request {
 					warn!("{:?}", chunk);
 					return acc;
 				};
-				let text = chunk
-					.choices
-					.into_iter()
-					.filter_map(|c| c.delta.content)
-					.fold("".to_string(), |acc, s| acc + s.as_str());
+
+				let Some(Choice {
+					delta: Delta {
+						content,
+						tool_calls: tcs,
+					},
+				}) = chunk.choices.into_iter().next()
+				else {
+					return acc;
+				};
+
+				if let Some(tcs) = tcs {
+					tool_calls.extend(tcs.into_iter().map(|tc| completion::ToolCall {
+						name: tc.function.name,
+						arguments: tc.function.arguments,
+					}));
+				}
+
+				let Some(text) = content else { return acc };
 				print!("{}", text);
 				_ = io::stdout().flush();
 				acc + text.as_str()
 			});
-		println!("\n----------END_OF_RESPONSE----------\n\n");
+		println!("\n[DONE]");
 
-		Ok(response)
+		Ok(Response { text, tool_calls })
 	}
 
 	fn stream(&self) -> Result<ChatCompletionStream, Error> {
@@ -55,8 +72,7 @@ impl Request {
 			.right_or_else(|req| req.bearer_auth(self.api_key.as_ref().as_slice()[0]))
 			.header(CONTENT_TYPE, "application/json")
 			.body(Json(Compl(&self.body)))
-			.send()
-			.inspect_err(|_| println!("here"))?
+			.send()?
 			.split();
 		if !status.is_success() {
 			let resp = reader.text()?;
@@ -170,6 +186,18 @@ pub struct Choice {
 #[derive(Debug, Deserialize)]
 pub struct Delta {
 	pub content: Option<String>,
+	pub tool_calls: Option<Vec<ToolCall>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToolCall {
+	function: Function,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Function {
+	name: String,
+	arguments: String,
 }
 
 bindings::export!(Component with_types_in bindings);

@@ -1,4 +1,4 @@
-package promptrs:client@0.1.0;
+package promptrs:client@0.2.0;
 
 interface completion {
 	record request {
@@ -23,7 +23,17 @@ interface completion {
 		status(tuple<string, string>),
 	}
 
-	receive: func(payload: request) -> result<string, string>;
+	record response {
+		text: string,
+		tool-calls: list<tool-call>,
+	}
+
+	record tool-call {
+		name: string,
+		arguments: string,
+	}
+
+	receive: func(payload: request) -> result<response, string>;
 }
 
 world client {
