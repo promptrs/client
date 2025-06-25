@@ -133,8 +133,12 @@ fn serialize_messages<S: Serializer>(
 			tbuf.push_str(&tool);
 			curr = messages.next();
 		}
-		seq.serialize_element(&HashMap::from([("role", "assistant"), ("content", &abuf)]))?;
-		seq.serialize_element(&HashMap::from([("role", "tool"), ("content", &tbuf)]))?;
+		if !abuf.is_empty() {
+			seq.serialize_element(&HashMap::from([("role", "assistant"), ("content", &abuf)]))?
+		};
+		if !tbuf.is_empty() {
+			seq.serialize_element(&HashMap::from([("role", "tool"), ("content", &tbuf)]))?
+		};
 
 		let Some(message) = curr else { break };
 
