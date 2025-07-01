@@ -6,7 +6,6 @@ use a2httpc::body::Json;
 use a2httpc::header::CONTENT_TYPE;
 use a2httpc::{ResponseReader, TextReader};
 use either::IntoEither;
-use log::warn;
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::HashMap;
@@ -34,7 +33,6 @@ impl Request {
 			.into_iter()
 			.fold(String::new(), |acc, chunk| {
 				let Ok(chunk) = chunk else {
-					warn!("{:?}", chunk);
 					return acc;
 				};
 

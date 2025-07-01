@@ -274,7 +274,6 @@ version = "0.2.0"
 dependencies = [
  "a2httpc",
  "either",
- "log",
  "serde",
  "serde_json",
  "wit-bindgen-rt",
