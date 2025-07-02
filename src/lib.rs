@@ -134,25 +134,19 @@ fn serialize_messages<S: Serializer>(
 	let mut messages = messages.iter();
 	let mut curr = messages.next();
 
-	let (mut abuf, mut tbuf) = (String::new(), String::new());
-
 	loop {
-		(abuf.truncate(0), tbuf.truncate(0));
 		while let Some(
 			completion::Message::ToolCall((assistant, tool))
 			| completion::Message::Status((assistant, tool)),
 		) = curr
 		{
-			abuf.push_str(&assistant);
-			tbuf.push_str(&tool);
+			seq.serialize_element(&HashMap::from([
+				("role", "assistant"),
+				("content", &assistant),
+			]))?;
+			seq.serialize_element(&HashMap::from([("role", "tool"), ("content", &tool)]))?;
 			curr = messages.next();
 		}
-		if !abuf.is_empty() {
-			seq.serialize_element(&HashMap::from([("role", "assistant"), ("content", &abuf)]))?
-		};
-		if !tbuf.is_empty() {
-			seq.serialize_element(&HashMap::from([("role", "tool"), ("content", &tbuf)]))?
-		};
 
 		let Some(message) = curr else { break };
 
